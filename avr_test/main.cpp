@@ -1,10 +1,23 @@
 #include <Arduino.h>
 #include <Wire.h>
+//#include <EEPROM.h>
+#include <avr/eeprom.h>
+
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP085_U.h>
 
 #include "Seven_Segment.h"
 
+#define read_eeprom_word(address) eeprom_read_word ((const uint16_t*)address)
+#define write_eeprom_word(address,value) eeprom_write_word ((uint16_t*)address,(uint16_t)value)
+#define update_eeprom_word(address,value) eeprom_update_word ((uint16_t*)address,(uint16_t)value)
+
+//declare an eeprom array
+//uint16_t EEMEM  my_eeprom_array[10];
+uint8_t EEMEM  eeprom_byte_array[10];
+
+// declare a ram array
+//unsigned int my_ram_array[10];
 
 /* This driver uses the Adafruit unified sensor library (Adafruit_Sensor),
    which provides a common 'type' for sensor data and some helper functions.
@@ -55,6 +68,13 @@ void displaySensorDetails(void)
   delay(500);
 }
 
+static uint8_t eepromAddr=0;
+void incEepromAddr(){
+	if(++eepromAddr >= 512){
+		eepromAddr=0;
+	}
+}
+
 /**************************************************************************/
 /*
     Arduino setup function (automatically called at startup)
@@ -62,21 +82,31 @@ void displaySensorDetails(void)
 /**************************************************************************/
 void setup(void)
 {
-  Serial.begin(9600);
-  Serial.println("Pressure Sensor Test"); Serial.println("");
-  /* Initialise the sensor */
+  SevenSegment::begin();
+    while(1){
+    	SevenSegment::printNum(213);
+    	//SevenSegment::printText("----");
+    }
   if(!bmp.begin())
   {
     /* There was a problem detecting the BMP085 ... check your connections */
-    Serial.print("Ooops, no BMP085 detected ... Check your wiring or I2C ADDR!");
-    while(1);
   }
+#if 0
+  Serial.begin(9600);
+  delay(10);
+  Serial.println("Pressure Sensor Test");
+  delay(10);
+  Serial.println("");
+  delay(10);
+  /* Initialise the sensor */
 
   /* Display some basic information on this sensor */
   displaySensorDetails();
+#endif
 
-  SevenSegment::begin();
-
+  /*
+	write_eeprom_word(&my_eeprom_array[0], 66);  // write value 1 to position 0 of the eeprom array
+	*/
 }
 
 /**************************************************************************/
@@ -87,19 +117,16 @@ void setup(void)
 /**************************************************************************/
 void loop(void)
 {
-	//Serial.println("Wait for sensor event");
 	delay(512);
+
   /* Get a new sensor event */
-  sensors_event_t event;
+	sensors_event_t event;
   bmp.getEvent(&event);
 
   /* Display the results (barometric pressure is measure in hPa) */
   if (event.pressure)
   {
     /* Display atmospheric pressue in hPa */
-    //Serial.print("Pressure:    ");
-    //Serial.print(event.pressure);
-    //Serial.println(" hPa");
 
     /* Calculating altitude with reasonable accuracy requires pressure    *
      * sea level pressure for your position at the moment the data is     *
@@ -119,32 +146,34 @@ void loop(void)
     /* First we get the current temperature from the BMP085 */
     float temperature;
     bmp.getTemperature(&temperature);
-    //Serial.print("Temperature: ");
-    //Serial.print(temperature);
-    //Serial.println(" C");
+
+    uint8_t temp = (uint8_t)((uint32_t)temperature)<<2;
+    SevenSegment::printNum(temp);
+    delay(512);
+    uint8_t press = (uint8_t)((uint32_t)event.pressure)<<2;
+    SevenSegment::printNum(press);
+    //eeprom_write_byte(&eeprom_byte_array[eepromAddr], (uint8_t)((uint32_t)temperature)<<2);
+    //eeprom_write_byte(&eeprom_byte_array[eepromAddr], (uint8_t)((uint32_t)event.pressure)<<2);
 
     /* Then convert the atmospheric pressure, SLP and temp to altitude    */
     /* Update this next line with the current SLP for better results      */
+#if 0
     float seaLevelPressure = 1012.0F;
-//    float seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA;
-    //Serial.print("Altitude:    ");
     float altitude = bmp.pressureToAltitude(seaLevelPressure,
             event.pressure,
             temperature);
     static float avgAltitude = altitude;
     avgAltitude = altitude*0.5 + avgAltitude*0.5;
-    Serial.print(avgAltitude);
-    Serial.println(" m");
-    //Serial.println("");
 
     //show on 7 segment LED
     for(uint32_t i=0;i<8;i++){
-    	SevenSegment::printNum((int32_t)avgAltitude);
+    	SevenSegment.printNum((int32_t)avgAltitude);
     }
+#endif
   }
   else
   {
-    Serial.println("Sensor error");
+    SevenSegment::printText("----");
   }
 }
 
