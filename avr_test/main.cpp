@@ -11,8 +11,7 @@
 #define update_eeprom_word(address,value) eeprom_update_word ((uint16_t*)address,(uint16_t)value)
 
 //declare an eeprom array
-//uint16_t EEMEM  my_eeprom_array[10];
-uint8_t EEMEM  eeprom_byte_array[10];
+uint16_t EEMEM  my_eeprom_array[510];
 
 // declare a ram array
 //unsigned int my_ram_array[10];
@@ -66,7 +65,7 @@ void displaySensorDetails(void)
   delay(500);
 }
 
-static uint8_t eepromAddr=0;
+static uint16_t eepromAddr = 0;
 void incEepromAddr(){
 	if(++eepromAddr >= 512){
 		eepromAddr=0;
@@ -93,9 +92,7 @@ void setup(void)
   /* Display some basic information on this sensor */
   displaySensorDetails();
 
-  /*
-	write_eeprom_word(&my_eeprom_array[0], 66);  // write value 1 to position 0 of the eeprom array
-  */
+//	write_eeprom_word(&my_eeprom_array[0], 66);  // write value 1 to position 0 of the eeprom array
 }
 
 /**************************************************************************/
@@ -106,11 +103,31 @@ void setup(void)
 /**************************************************************************/
 void loop(void)
 {
+//	delay(7200);
 	delay(512);
+	static uint8_t sampleCnt=0;
 
   /* Get a new sensor event */
 	sensors_event_t event;
   bmp.getEvent(&event);
+  Serial.println(sampleCnt);
+  if(sampleCnt%10==0) {
+	  if(event.temperature){
+		  float temperature;
+		  bmp.getTemperature(&temperature);
+		  uint16_t temp = (uint16_t)(temperature);
+		  Serial.print("Temperature: ");
+		  Serial.println(temp);
+	  }
+  } else {
+	  if(event.pressure){
+		  uint16_t press = (uint16_t)(event.pressure);
+		  Serial.print("Pressure: ");
+		  Serial.println(press);
+	  }
+  }
+  sampleCnt++;
+  return;
 
   /* Display the results (barometric pressure is measure in hPa) */
   if (event.pressure)
@@ -136,13 +153,13 @@ void loop(void)
     float temperature;
     bmp.getTemperature(&temperature);
 
-    uint8_t temp = (uint8_t)((uint32_t)temperature)<<2;
+    uint16_t temp = (uint16_t)(temperature);
     Serial.print("Temperature: ");
-    Serial.println(temperature);
+    Serial.println(temp);
     delay(512);
-    uint8_t press = (uint8_t)((uint32_t)event.pressure)<<2;
+    uint16_t press = (uint16_t)(event.pressure);
     Serial.print("Pressure: ");
-    Serial.println(event.pressure);
+    Serial.println(press);
     //eeprom_write_byte(&eeprom_byte_array[eepromAddr], (uint8_t)((uint32_t)temperature)<<2);
     //eeprom_write_byte(&eeprom_byte_array[eepromAddr], (uint8_t)((uint32_t)event.pressure)<<2);
 
