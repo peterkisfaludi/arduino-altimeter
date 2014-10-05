@@ -6,8 +6,6 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP085_U.h>
 
-#include "Seven_Segment.h"
-
 #define read_eeprom_word(address) eeprom_read_word ((const uint16_t*)address)
 #define write_eeprom_word(address,value) eeprom_write_word ((uint16_t*)address,(uint16_t)value)
 #define update_eeprom_word(address,value) eeprom_update_word ((uint16_t*)address,(uint16_t)value)
@@ -82,31 +80,22 @@ void incEepromAddr(){
 /**************************************************************************/
 void setup(void)
 {
-  SevenSegment::begin();
-    while(1){
-    	SevenSegment::printNum(213);
-    	//SevenSegment::printText("----");
-    }
+  Serial.begin(9600);
+  Serial.println("Pressure Sensor Test");
+  Serial.println("");
+  /* Initialise the sensor */
   if(!bmp.begin())
   {
     /* There was a problem detecting the BMP085 ... check your connections */
+	  Serial.println("There was a problem detecting the BMP085 ... check your connections");
   }
-#if 0
-  Serial.begin(9600);
-  delay(10);
-  Serial.println("Pressure Sensor Test");
-  delay(10);
-  Serial.println("");
-  delay(10);
-  /* Initialise the sensor */
 
   /* Display some basic information on this sensor */
   displaySensorDetails();
-#endif
 
   /*
 	write_eeprom_word(&my_eeprom_array[0], 66);  // write value 1 to position 0 of the eeprom array
-	*/
+  */
 }
 
 /**************************************************************************/
@@ -148,10 +137,12 @@ void loop(void)
     bmp.getTemperature(&temperature);
 
     uint8_t temp = (uint8_t)((uint32_t)temperature)<<2;
-    SevenSegment::printNum(temp);
+    Serial.print("Temperature: ");
+    Serial.println(temperature);
     delay(512);
     uint8_t press = (uint8_t)((uint32_t)event.pressure)<<2;
-    SevenSegment::printNum(press);
+    Serial.print("Pressure: ");
+    Serial.println(event.pressure);
     //eeprom_write_byte(&eeprom_byte_array[eepromAddr], (uint8_t)((uint32_t)temperature)<<2);
     //eeprom_write_byte(&eeprom_byte_array[eepromAddr], (uint8_t)((uint32_t)event.pressure)<<2);
 
@@ -173,7 +164,6 @@ void loop(void)
   }
   else
   {
-    SevenSegment::printText("----");
   }
 }
 
