@@ -11,7 +11,8 @@
 #define update_eeprom_word(address,value) eeprom_update_word ((uint16_t*)address,(uint16_t)value)
 
 //declare an eeprom array
-uint16_t EEMEM  my_eeprom_array[510];
+#define EEPROM_ARRAY_SIZE 510
+uint16_t EEMEM  my_eeprom_array[EEPROM_ARRAY_SIZE];
 
 // declare a ram array
 //unsigned int my_ram_array[10];
@@ -39,7 +40,7 @@ uint16_t EEMEM  my_eeprom_array[510];
    =======
    2013/JUN/17  - Updated altitude calculations (KTOWN)
    2013/FEB/13  - First version (KTOWN)
-*/
+ */
 
 Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(10085);
 
@@ -47,140 +48,154 @@ Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(10085);
 /*
     Displays some basic information on this sensor from the unified
     sensor API sensor_t type (see Adafruit_Sensor for more information)
-*/
+ */
 /**************************************************************************/
 void displaySensorDetails(void)
 {
-  sensor_t sensor;
-  bmp.getSensor(&sensor);
-  Serial.println("------------------------------------");
-  Serial.print  ("Sensor:       "); Serial.println(sensor.name);
-  Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
-  Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
-  Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" hPa");
-  Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" hPa");
-  Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" hPa");
-  Serial.println("------------------------------------");
-  Serial.println("");
-  delay(500);
+	sensor_t sensor;
+	bmp.getSensor(&sensor);
+	Serial.println("------------------------------------");
+	Serial.print  ("Sensor:       "); Serial.println(sensor.name);
+	Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
+	Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
+	Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" hPa");
+	Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" hPa");
+	Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" hPa");
+	Serial.println("------------------------------------");
+	Serial.println("");
+	delay(500);
 }
 
 static uint16_t eepromAddr = 0;
-void incEepromAddr(){
-	if(++eepromAddr >= 512){
-		eepromAddr=0;
+static inline void incEepromAddr(){
+	if(++eepromAddr >= EEPROM_ARRAY_SIZE-1){
+		eepromAddr=EEPROM_ARRAY_SIZE-1;
 	}
+}
+
+void writeSampleToEeprom(uint16_t sample){
+	update_eeprom_word(&my_eeprom_array[eepromAddr], sample);
+	incEepromAddr();
 }
 
 /**************************************************************************/
 /*
     Arduino setup function (automatically called at startup)
-*/
+ */
 /**************************************************************************/
 void setup(void)
 {
-  Serial.begin(9600);
-  Serial.println("Pressure Sensor Test");
-  Serial.println("");
-  /* Initialise the sensor */
-  if(!bmp.begin())
-  {
-    /* There was a problem detecting the BMP085 ... check your connections */
-	  Serial.println("There was a problem detecting the BMP085 ... check your connections");
-  }
+	DDRC = DDRC & 0b11111110;
+	PORTC |= 0b00000001;
 
-  /* Display some basic information on this sensor */
-  displaySensorDetails();
+//	Serial.begin(9600);
+//	Serial.println("Pressure Sensor Test");
+//	Serial.println("");
+	/* Initialise the sensor */
+	if(!bmp.begin())
+	{
+		/* There was a problem detecting the BMP085 ... check your connections */
+//		Serial.println("There was a problem detecting the BMP085 ... check your connections");
+	}
 
-//	write_eeprom_word(&my_eeprom_array[0], 66);  // write value 1 to position 0 of the eeprom array
+	/* Display some basic information on this sensor */
+//	displaySensorDetails();
 }
 
 /**************************************************************************/
 /*
     Arduino loop function, called once 'setup' is complete (your own code
     should go here)
-*/
+ */
 /**************************************************************************/
 void loop(void)
 {
-//	delay(7200);
-	delay(512);
+	//	delay(7200); //1 hr flight
+	delay(10800); //1.5 hr flight
 	static uint8_t sampleCnt=0;
-
-  /* Get a new sensor event */
+	if(!(PINC & 0b00000001)){
+		return;
+	}
+	/* Get a new sensor event */
 	sensors_event_t event;
-  bmp.getEvent(&event);
-  Serial.println(sampleCnt);
-  if(sampleCnt%10==0) {
-	  if(event.temperature){
-		  float temperature;
-		  bmp.getTemperature(&temperature);
-		  uint16_t temp = (uint16_t)(temperature);
-		  Serial.print("Temperature: ");
-		  Serial.println(temp);
-	  }
-  } else {
-	  if(event.pressure){
-		  uint16_t press = (uint16_t)(event.pressure);
-		  Serial.print("Pressure: ");
-		  Serial.println(press);
-	  }
-  }
-  sampleCnt++;
-  return;
-
-  /* Display the results (barometric pressure is measure in hPa) */
-  if (event.pressure)
-  {
-    /* Display atmospheric pressue in hPa */
-
-    /* Calculating altitude with reasonable accuracy requires pressure    *
-     * sea level pressure for your position at the moment the data is     *
-     * converted, as well as the ambient temperature in degress           *
-     * celcius.  If you don't have these values, a 'generic' value of     *
-     * 1013.25 hPa can be used (defined as SENSORS_PRESSURE_SEALEVELHPA   *
-     * in sensors.h), but this isn't ideal and will give variable         *
-     * results from one day to the next.                                  *
-     *                                                                    *
-     * You can usually find the current SLP value by looking at weather   *
-     * websites or from environmental information centers near any major  *
-     * airport.                                                           *
-     *                                                                    *
-     * For example, for Paris, France you can check the current mean      *
-     * pressure and sea level at: http://bit.ly/16Au8ol                   */
-
-    /* First we get the current temperature from the BMP085 */
-    float temperature;
-    bmp.getTemperature(&temperature);
-
-    uint16_t temp = (uint16_t)(temperature);
-    Serial.print("Temperature: ");
-    Serial.println(temp);
-    delay(512);
-    uint16_t press = (uint16_t)(event.pressure);
-    Serial.print("Pressure: ");
-    Serial.println(press);
-    //eeprom_write_byte(&eeprom_byte_array[eepromAddr], (uint8_t)((uint32_t)temperature)<<2);
-    //eeprom_write_byte(&eeprom_byte_array[eepromAddr], (uint8_t)((uint32_t)event.pressure)<<2);
-
-    /* Then convert the atmospheric pressure, SLP and temp to altitude    */
-    /* Update this next line with the current SLP for better results      */
+	bmp.getEvent(&event);
+//	Serial.println(sampleCnt);
+	uint16_t sample = 0;
+	if(sampleCnt%10==0) {
+		if(event.temperature){
+			float temperature;
+			bmp.getTemperature(&temperature);
+			uint16_t temp = (uint16_t)(temperature);
+//			Serial.print("Temperature: ");
+//			Serial.println(temp);
+			sample = temp;
+		}
+	} else {
+		if(event.pressure){
+			uint16_t press = (uint16_t)(event.pressure);
+//			Serial.print("Pressure: ");
+//			Serial.println(press);
+			sample = press;
+		}
+	}
+//	Serial.println("Writing sample to eeprom");
+	writeSampleToEeprom(sample);
+	sampleCnt++;
+	return;
 #if 0
-    float seaLevelPressure = 1012.0F;
-    float altitude = bmp.pressureToAltitude(seaLevelPressure,
-            event.pressure,
-            temperature);
-    static float avgAltitude = altitude;
-    avgAltitude = altitude*0.5 + avgAltitude*0.5;
+	/* Display the results (barometric pressure is measure in hPa) */
+	if (event.pressure)
+	{
+		/* Display atmospheric pressue in hPa */
 
-    //show on 7 segment LED
-    for(uint32_t i=0;i<8;i++){
-    	SevenSegment.printNum((int32_t)avgAltitude);
-    }
+		/* Calculating altitude with reasonable accuracy requires pressure    *
+		 * sea level pressure for your position at the moment the data is     *
+		 * converted, as well as the ambient temperature in degress           *
+		 * celcius.  If you don't have these values, a 'generic' value of     *
+		 * 1013.25 hPa can be used (defined as SENSORS_PRESSURE_SEALEVELHPA   *
+		 * in sensors.h), but this isn't ideal and will give variable         *
+		 * results from one day to the next.                                  *
+		 *                                                                    *
+		 * You can usually find the current SLP value by looking at weather   *
+		 * websites or from environmental information centers near any major  *
+		 * airport.                                                           *
+		 *                                                                    *
+		 * For example, for Paris, France you can check the current mean      *
+		 * pressure and sea level at: http://bit.ly/16Au8ol                   */
+
+		/* First we get the current temperature from the BMP085 */
+		float temperature;
+		bmp.getTemperature(&temperature);
+
+		uint16_t temp = (uint16_t)(temperature);
+		Serial.print("Temperature: ");
+		Serial.println(temp);
+		delay(512);
+		uint16_t press = (uint16_t)(event.pressure);
+		Serial.print("Pressure: ");
+		Serial.println(press);
+		//eeprom_write_byte(&eeprom_byte_array[eepromAddr], (uint8_t)((uint32_t)temperature)<<2);
+		//eeprom_write_byte(&eeprom_byte_array[eepromAddr], (uint8_t)((uint32_t)event.pressure)<<2);
+
+		/* Then convert the atmospheric pressure, SLP and temp to altitude    */
+		/* Update this next line with the current SLP for better results      */
+#if 0
+		float seaLevelPressure = 1012.0F;
+		float altitude = bmp.pressureToAltitude(seaLevelPressure,
+				event.pressure,
+				temperature);
+		static float avgAltitude = altitude;
+		avgAltitude = altitude*0.5 + avgAltitude*0.5;
+
+		//show on 7 segment LED
+		for(uint32_t i=0;i<8;i++){
+			SevenSegment.printNum((int32_t)avgAltitude);
+		}
 #endif
-  }
-  else
-  {
-  }
+	}
+	else
+	{
+	}
+#endif
 }
 
